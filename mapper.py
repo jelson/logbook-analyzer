@@ -100,10 +100,6 @@ class Landings:
         df = df.join(airport_db.df, on='code')
         df = df.set_index('code')
 
-        for idx, landing in df.iterrows():
-            if landing['lat'] < 10:
-                print(landing)
-
         self.df = df
 
 def get_landing_state_codes(landings):
