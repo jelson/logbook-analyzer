@@ -30,12 +30,24 @@ class AirportDatabase:
         # Set index to be the airport's globally unique identifier
         df = df.set_index('ident')
 
-        # there's probably a better way to do this in a single pass
-        # and without copy-pasted code
-        df['lon'] = df['coordinates'].apply(lambda c: float(c.split(', ')[0]))
-        df['lat'] = df['coordinates'].apply(lambda c: float(c.split(', ')[1]))
+        # Convert the 'coordinates' field, which is a string that looks like
+        # "-144.5, 44.5", to float lats and lons
+        lonlat = df['coordinates'].str.split(', ', expand=True).astype(float)
 
-        self.df = df
+        # Make it into a geodataframe so we can do coordinate reference system
+        # conversions
+        gdf = geopandas.GeoDataFrame(
+            df,
+            geometry=geopandas.points_from_xy(
+                x=lonlat[0], y=lonlat[1],
+                crs=4326,
+            )
+        )
+
+        # Convert to mercator
+        gdf = gdf.to_crs("EPSG:3395")
+
+        self.df = gdf
 
     # Determine the canonical identifier of an airport code in the logbook
     def canonicalize_airport_code(self, code):
@@ -107,7 +119,7 @@ class Landings:
         for codes in logbook.df['codes']:
             landings.update(codes)
 
-        df = pd.DataFrame(sorted(landings), columns=['code'])
+        df = geopandas.GeoDataFrame(sorted(landings), columns=['code'])
 
         # Annotate the landings dataframe with info from the airport info
         # database
@@ -130,7 +142,7 @@ def get_landing_state_codes(landings):
 
 def get_state_shapes():
     states = geopandas.read_file(STATES_SHAPES)
-    #states = states.to_crs("EPSG:3395")
+    states = states.to_crs("EPSG:3395")
     for state in DROPPED_STATES:
         states.drop(states[states['STUSPS'] == state].index, inplace = True)
 
@@ -145,7 +157,7 @@ def main():
     landing_state_codes = get_landing_state_codes(landings)
     print(f"{len(landing_state_codes)} unique states: {sorted(landing_state_codes)}")
 
-    fig, ax = plt.subplots(figsize=(30, 17))
+    fig, ax = plt.subplots(figsize=(30, 21))
 
     # Plot state boundaries
     state_shapes = get_state_shapes()
@@ -162,21 +174,20 @@ def main():
         color='LightGrey')
 
     # Plot routes between airports
-    for idx, flight in logbook.df.iterrows():
-        routecodes = flight['codes']
+    for routecodes in logbook.df['codes']:
         for i in range(len(routecodes)-1):
-            from_airport = airport_db.df.loc[routecodes[i]]
-            to_airport = airport_db.df.loc[routecodes[i+1]]
-            x = [from_airport['lon'], to_airport['lon']]
-            y = [from_airport['lat'], to_airport['lat']]
+            from_coord = airport_db.df.loc[routecodes[i]]['geometry']
+            to_coord = airport_db.df.loc[routecodes[i+1]]['geometry']
+            x = [from_coord.x, to_coord.x]
+            y = [from_coord.y, to_coord.y]
             ax.plot(x, y, color='blue')
 
     # Plot airports with landings
-    landings.df.plot.scatter(ax=ax, x='lon', y='lat', color='red', zorder=5)
+    landings.df['geometry'].plot(ax=ax, color='red', zorder=5)
 
     ax.set_axis_off()
-    ax.set_xlim([-170, -65])
-    ax.set_ylim([25, 73.5])
+    ax.set_xlim([-1.8e7, -0.74e7])
+    ax.set_ylim([.25e7, 1e7])
     ax.figure.tight_layout()
     ax.figure.savefig("/home/jelson/public_html/fig.png")
     ax.figure.savefig("/home/jelson/public_html/fig.svg")
