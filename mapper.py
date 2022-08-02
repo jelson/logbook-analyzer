@@ -9,24 +9,35 @@ AIRPORT_DB = 'data/airport-codes.json'
 STATES_SHAPES = 'data/state-shapes/cb_2018_us_state_20m.shp'
 DROPPED_STATES = ['HI', 'PR']
 
-
-import json
-import pandas as pd
 import geopandas
+import json
+
+# don't attempt to connect over X11 when creating a plot
+import matplotlib
+matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
+import pandas as pd
 import sys
 
 class AirportDatabase:
     def __init__(self):
         df = pd.read_json(AIRPORT_DB)
+
+        # Drop all airports that are not in North America
+        df = df[df['continent'] == 'NA']
+
+        # Set index to be the airport's globally unique identifier
         df = df.set_index('ident')
 
         # there's probably a better way to do this in a single pass
         # and without copy-pasted code
         df['lon'] = df['coordinates'].apply(lambda c: float(c.split(', ')[0]))
         df['lat'] = df['coordinates'].apply(lambda c: float(c.split(', ')[1]))
-    
+
         self.df = df
 
+    # Determine the canonical identifier of an airport code in the logbook
     def canonicalize_airport_code(self, code):
         if "K"+code in self.df.index:
             return "K"+code
@@ -34,6 +45,9 @@ class AirportDatabase:
             return "C"+code
         if code in self.df.index:
             return code
+        local = self.df[self.df['local_code'] == code]
+        if len(local) == 1:
+            return local.index[0]
 
         print(f"Unknown airport: {code}")
         return None
@@ -66,7 +80,7 @@ class AirportDatabase:
             return None
 
         return codes
-    
+
 # Get my logbook as a dataframe
 class Logbook:
     def __init__(self, airport_db):
@@ -119,7 +133,7 @@ def get_state_shapes():
     #states = states.to_crs("EPSG:3395")
     for state in DROPPED_STATES:
         states.drop(states[states['STUSPS'] == state].index, inplace = True)
-                       
+
     return states
 
 def main():
@@ -131,9 +145,11 @@ def main():
     landing_state_codes = get_landing_state_codes(landings)
     print(f"{len(landing_state_codes)} unique states: {sorted(landing_state_codes)}")
 
+    fig, ax = plt.subplots(figsize=(30, 17))
+
     # Plot state boundaries
     state_shapes = get_state_shapes()
-    ax = state_shapes.boundary.plot(figsize=(30, 17), color="Black")
+    state_shapes.boundary.plot(ax=ax, color="Black")
 
     # Plot landing states in green
     state_shapes[state_shapes['STUSPS'].isin(landing_state_codes)].plot(
