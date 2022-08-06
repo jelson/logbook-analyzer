@@ -8,6 +8,9 @@ LOGBOOK = '/mnt/jerdocs/Documents/Projects/Flying/Logbook.ods'
 AIRPORT_DB = 'data/airport-codes.json'
 STATES_SHAPES = 'data/state-shapes/cb_2018_us_state_20m.shp'
 DROPPED_STATES = ['HI', 'PR']
+CANADA_SHAPES = 'data/canada-shapes/canada.shp'
+DRAWN_PROVINCES = ['B.C.', 'Y.T.']
+MERCATOR_CRS = 'EPSG:3395'
 
 import geopandas
 import json
@@ -45,7 +48,7 @@ class AirportDatabase:
         )
 
         # Convert to mercator
-        gdf = gdf.to_crs("EPSG:3395")
+        gdf = gdf.to_crs(MERCATOR_CRS)
 
         self.df = gdf
 
@@ -142,11 +145,15 @@ def get_landing_state_codes(landings):
 
 def get_state_shapes():
     states = geopandas.read_file(STATES_SHAPES)
-    states = states.to_crs("EPSG:3395")
-    for state in DROPPED_STATES:
-        states.drop(states[states['STUSPS'] == state].index, inplace = True)
-
+    states = states.to_crs(MERCATOR_CRS)
+    states = states[~states['STUSPS'].isin(DROPPED_STATES)]
     return states
+
+def get_canada_shapes():
+    canada = geopandas.read_file(CANADA_SHAPES)
+    canada = canada.to_crs(MERCATOR_CRS)
+    canada = canada[canada['PREABBR'].isin(DRAWN_PROVINCES)]
+    return canada
 
 def main():
     airport_db = AirportDatabase()
@@ -159,12 +166,17 @@ def main():
 
     fig, ax = plt.subplots(figsize=(30, 21))
 
-    # Plot state boundaries
+    # Plot state and province boundaries
     state_shapes = get_state_shapes()
     state_shapes.boundary.plot(ax=ax, color="Black")
+    canada_shapes = get_canada_shapes()
+    canada_shapes.boundary.plot(ax=ax, color="Black")
 
-    # Plot landing states in green
+    # Plot landing states in green (and all canadian provinces)
     state_shapes[state_shapes['STUSPS'].isin(landing_state_codes)].plot(
+        ax=ax,
+        color='Green')
+    canada_shapes.plot(
         ax=ax,
         color='Green')
 
@@ -189,7 +201,7 @@ def main():
     ax.set_xlim([-1.8e7, -0.74e7])
     ax.set_ylim([.25e7, 1e7])
     ax.figure.tight_layout()
-    ax.figure.savefig("/home/jelson/public_html/fig.png")
-    ax.figure.savefig("/home/jelson/public_html/fig.svg")
+    ax.figure.savefig("/home/jelson/public_html/landings.png")
+    ax.figure.savefig("/home/jelson/public_html/landings.svg")
 
 main()

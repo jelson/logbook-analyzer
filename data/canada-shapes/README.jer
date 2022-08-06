@@ -1,0 +1,20 @@
+Data source:
+
+1) Download raw data from
+
+https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lpr_000b21a_e.zip
+
+The URL above was found by googling "canada province shapefiles", bringing me to
+
+https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-eng.cfm?year=21
+
+and then selecting
+  * Administrative Boundaries --> Provinces/Territories
+  * Format --> shapefiles
+
+Then download and unzip.
+
+2) Data is absurdly too high res for a country-wide plot, so reduce it with:
+
+   apt-get install gdal-bin
+   ogr2ogr canada.shp lpr_000b21a_e.shp  -simplify 1000
