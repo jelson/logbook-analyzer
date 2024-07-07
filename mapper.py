@@ -2,7 +2,14 @@
 
 # Using tutorial: https://jcutrer.com/python/learn-geopandas-plotting-usmaps
 
-#LOGBOOK = 'sample-logbook'
+import geopandas
+import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# don't attempt to connect over X11 when creating a plot
+matplotlib.use('Agg')
+
 LOGBOOK = '/mnt/jerdocs/Documents/Projects/Flying/Logbook.ods'
 
 AIRPORT_DB = 'data/airport-codes.json'
@@ -12,16 +19,6 @@ CANADA_SHAPES = 'data/canada-shapes/canada.shp'
 DRAWN_PROVINCES = ['B.C.', 'Y.T.']
 MERCATOR_CRS = 'EPSG:3395'
 
-import geopandas
-import json
-
-# don't attempt to connect over X11 when creating a plot
-import matplotlib
-matplotlib.use('Agg')
-
-import matplotlib.pyplot as plt
-import pandas as pd
-import sys
 
 class AirportDatabase:
     def __init__(self):
@@ -96,6 +93,7 @@ class AirportDatabase:
 
         return codes
 
+
 # Get my logbook as a dataframe
 class Logbook:
     def __init__(self, airport_db):
@@ -107,29 +105,24 @@ class Logbook:
         df['codes'] = df['Route'].apply(airport_db.split_valid_route)
 
         # Report errors
-        #for i, row in df[df['codes'].isna() & ~df['Route'].isna()].iterrows():
-        #    print(row)
+        if False:
+            for i, row in df[df['codes'].isna() & ~df['Route'].isna()].iterrows():
+                print(row)
 
         # Drop any lines that don't appear to have a valid route
         df = df[~df['codes'].isna()]
 
         self.df = df
 
+
 class Landings:
     def __init__(self, logbook, airport_db):
         # Get a unique list of every airport we've landed at
-        landings = set()
-        for codes in logbook.df['codes']:
-            landings.update(codes)
+        landing_airports = set([airport for route in logbook.df['codes'] for airport in route])
 
-        df = geopandas.GeoDataFrame(sorted(landings), columns=['code'])
-
-        # Annotate the landings dataframe with info from the airport info
-        # database
-        df = df.join(airport_db.df, on='code')
-        df = df.set_index('code')
-
+        df = airport_db.df.loc[sorted(landing_airports)]
         self.df = df
+
 
 def get_landing_state_codes(landings):
     # Get a unique list of regions we've landed in
@@ -143,11 +136,13 @@ def get_landing_state_codes(landings):
 
     return states
 
+
 def get_state_shapes():
     states = geopandas.read_file(STATES_SHAPES)
     states = states.to_crs(MERCATOR_CRS)
     states = states[~states['STUSPS'].isin(DROPPED_STATES)]
     return states
+
 
 def get_canada_shapes():
     canada = geopandas.read_file(CANADA_SHAPES)
@@ -155,10 +150,13 @@ def get_canada_shapes():
     canada = canada[canada['PREABBR'].isin(DRAWN_PROVINCES)]
     return canada
 
+
 def main():
     airport_db = AirportDatabase()
     logbook = Logbook(airport_db)
     landings = Landings(logbook, airport_db)
+    print(logbook.df)
+    print(landings.df)
 
     # Get the list of unique states in which we've landed
     landing_state_codes = get_landing_state_codes(landings)
@@ -195,6 +193,12 @@ def main():
             ax.plot(x, y, color='blue')
 
     # Plot airports with landings
+    #ax.plot(x=[p.x for p in landings.df['geometry']],
+    #        y=[p.y for p in landings.df['geometry']],
+    #        color='red',
+    #        marker='o',
+    #        )
+    landings.df.plot(ax=ax, color='red', marker='o', zorder=5)
     landings.df['geometry'].plot(ax=ax, color='red', zorder=5)
 
     ax.set_axis_off()
@@ -204,4 +208,6 @@ def main():
     ax.figure.savefig("/home/jelson/public_html/landings.png")
     ax.figure.savefig("/home/jelson/public_html/landings.svg")
 
-main()
+
+if __name__ == "__main__":
+    main()
