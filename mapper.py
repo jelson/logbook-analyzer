@@ -193,13 +193,7 @@ def main():
             ax.plot(x, y, color='blue')
 
     # Plot airports with landings
-    #ax.plot(x=[p.x for p in landings.df['geometry']],
-    #        y=[p.y for p in landings.df['geometry']],
-    #        color='red',
-    #        marker='o',
-    #        )
     landings.df.plot(ax=ax, color='red', marker='o', zorder=5)
-    landings.df['geometry'].plot(ax=ax, color='red', zorder=5)
 
     ax.set_axis_off()
     ax.set_xlim([-1.8e7, -0.74e7])
